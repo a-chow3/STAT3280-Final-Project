@@ -1,0 +1,905 @@
+---
+title: "Analyzing Offensive Efficiency Trends in the Modern NFL"
+author: "Adam Chow"
+date: "2024-04-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+## LOAD PACKAGES HERE
+library(tidyverse)
+library(stringr)
+library(rvest)
+library(plotly)
+library(ggplot2)
+library(shiny)
+library(rsconnect)
+library(knitr)
+okabe_ito_colors <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
+                      "#D55E00", "#CC79A7", "#DC3220", "#000000", "#5D3A9B")
+```
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+# NFL Play-by-play data
+pbp_2023 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2023.csv")
+
+pbp_2022 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2022.csv")
+
+pbp_2021 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2021.csv")
+
+pbp_2020 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2020.csv")
+
+pbp_2019 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2019.csv")
+
+pbp_2018 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2018.csv")
+
+pbp_2017 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2017.csv")
+
+pbp_2016 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2016.csv")
+
+pbp_2015 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2015.csv")
+
+pbp_2014 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2014.csv")
+
+pbp_2013 <- read_csv("/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/Shiny1/pbp-2013.csv")
+
+nfl_pbp <- do.call("rbind", list(pbp_2013, pbp_2014, pbp_2015, pbp_2016, pbp_2017, pbp_2018, pbp_2019, pbp_2020, pbp_2021, pbp_2022, pbp_2023))
+
+select_cols <- c(2,3,4,5,6,7,8,9,10,12,15,19,20,21,22,23,24,25,26,27,28,33,34,35,36,37,38,40, 42,44,45)
+
+nfl_pbp <- nfl_pbp[,select_cols]
+```
+
+Across the past decade in the NFL, Roger Goodell, the current NFL commissioner, has not been at all shy about immediately enacting new rule changes if he and his committee see fit. If the NFL executive board senses any sort of adjustment can create an extra source or a spike in revenue, then they will press that button without a second thought. According to the Gallup, the popularity of American Football in the US had steadily diminished throughout the 2010's, instigating this aggressive nature to change the rules in the recent years of the late 2010's and early 2020's.
+
+Ultimately, many of these new rule changes favor the offensive side of the football, per the national media. From allowing defenseless player protection to receivers, to banning "the leaper" in extra points, extending the touch back to 25 yards, it has become a general audience consensus that the NFL is rapidly attempting to enhance the television product with more action, scoring, and rekindled excitement. After an extremely successful tv ratings and revenue NFL season in 2023, the NFL has enacted two more significant rule changes for the upcoming 2024 season: new kickoff rules to incentives kick returns and the elimination of the hip-drop tackle. 
+
+With the NFL announcing these rule changes in March, millions of fans, multiple sports broadcasters, and several ex-NFL players seemed to be enraged that the NFL would take away a form of tackling that has been in the game since it's birth. I want to attempt to predict whether this specific tackle will have as significant of an impact as people say it will.
+
+**Research Questions**: Are these new NFL rules hurting America's Game? Will the new elimination of the hip-drop tackle has as adverse of an effect on defensive playmaking as people suggest?
+
+# List of NFL *Regular Season* Rule Changes & Impact
+Here are the NFL rule changes for each year from 2013 to 2023:
+
+**2013**: 
+- It is illegal for a runner or tackler to initiate forcible contact by delivering a blow with the top or crown of his helmet against an opponent when both players are clearly outside the tackle box.
+- Changing overtime so that the postseason rule will be used in the regular season as well.
+- Deems Long Snapper as "defenseless" now
+- Automatically reviewing turnovers by instant replay just like scoring plays.
+
+**2014**:
+- Protection for the defensive players in blocks below the waist.
+- Stopping the game clock on a quarterback sack with more than two minutes left in the half.
+- Consulting with the NFL command center in New York during the instant replay system.
+- Experimenting with a longer extra-point during the first two weeks of the preseason. ( Moved 2 -> 15 yard line)
+
+**2015**:
+- Allowing the offensive and defensive play callers on the coaching staffs to use the coach-to-player communication system regardless of whether they are on the field or in the coaches’ booth.
+- Permanently adopting the longer extra-point rule.
+
+**2016**:
+- Outlawing all **chop blocks** anywhere on the field.
+- Expanding the **horse collar** rule to include when a defender grabs the jersey at the name plate or above and pulls a runner toward the ground.
+- Making it a foul for delay of game when a team attempts to call a timeout when it is not permitted to do so.
+- Eliminating the five-yard penalty for an eligible receiver illegally touching a forward pass after being out of bounds and re-establishing himself inbounds, and makes it a loss of down.
+
+**2017**:
+- Prohibits the leaper in a block attempt on field goal and extra point plays. (Can no longer hurdle offensive linemen on the LOS)
+- Gives a receiver running a pass route defenseless player protection.
+- Prohibits **crackback blocks** by a backfield player who is in motion, even if he is not more than two yards outside the tackle when the ball is snapped.
+
+**2018**:
+- It is a foul if a player lowers his head to initiate and make contact with his helmet against an opponent. It is a penalty that will result in the loss of 15 yards. If the foul is by the defense, it is also an automatic first down. The player may be disqualified.
+- Extends the permanent rule changing the spot of the next snap after a touchback resulting from a free kick to the 25-yard line.
+
+**2019**:
+- Expanded protection to defenseless players, making it a foul if a player initiates a block when his path is toward or parallel to his own end line and makes forcible contact to his opponent with his helmet, forearm, or shoulder.
+- Game officials will continue to focus on identifying fouls in line play, specifically mobile blocks, cut blocks, and certain pass rush techniques, where initiating contact with the helmet occurs
+
+**2020**:
+- The league did agree on several other changes for the 2020 season. This includes a \"permanent expansion of automatic replay reviews\", more protection for defenseless kick and punt returners as well as a prevention of teams from manipulating the clock with dead-ball penalties.
+- expansion of playoffs to 14 teams instead of 12 teams.
+
+**2021**:
+- Addition of 17th game
+
+**2023**:
+- Puts ball in play at the receiving team's 25-yard line if there is a fair catch on a free kick (kickoff and safety kick) behind the receiving team's 25-yard line, which should reduce injuries while not changing the fundamentals of the kickoff itself.
+- Expands Impermissible Use of the Helmet, making it a foul for players to use their helmet to "butt, ram, spear" or make forcible contact to opponents' head or neck area in any way.
+
+
+As you can see by the list of rule changes in the NFL over the past decade. There has been a great amount of emphasis placed on player safety and protection of the head/neck area specifically. With these new rule changes, have these rules impacted the game like the national media has proposed it would?
+
+## 1. Contemporary Trends in the Modern NFL
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+nfl_pbp_ps <- nfl_pbp %>%
+  mutate(PointsScored = case_when(
+    PlayType == "EXTRA POINT" & str_detect(Description, "GOOD") ~ 1,
+    PlayType == "TWO-POINT CONVERSION" & str_detect(Description, "SUCCEEDS") ~ 2,
+    IsInterception == 0 & IsTouchdown == 1 ~ 6,
+    TRUE ~ 0
+  ))
+
+nfl_pbp_gdpsty <- nfl_pbp_ps %>% 
+  mutate(MonthYear = format(GameDate, "%b %Y")) %>%
+  group_by(MonthYear) %>%
+  summarise(PointsScored = sum(PointsScored), TotalYards = sum(Yards, na.rm = TRUE))
+# Add Total Yards column
+
+# Convert "MonthYear" back to Date type 
+nfl_pbp_gdpsty$MonthYear <- factor(nfl_pbp_gdpsty$MonthYear, levels = unique(nfl_pbp_gdpsty$MonthYear[order(as.Date(paste(nfl_pbp_gdpsty$MonthYear, "01"), format="%b %Y %d"))]))
+
+nfl_pbp_gdpsty_event <- nfl_pbp_gdpsty %>%
+  mutate(Event = case_when(
+    str_detect(MonthYear, "^Sep") ~ "New Season",
+    str_detect(MonthYear, "^Jan") ~ "Playoffs",
+    TRUE ~ "Regular Season"
+  ))
+
+# Reshape
+nfl_pbp_gdpsty_event <- tidyr::pivot_longer(nfl_pbp_gdpsty_event, c(PointsScored, TotalYards), names_to = "Metric", values_to = "Value")
+
+# Create area plot with facets
+ggplot(nfl_pbp_gdpsty_event, aes(x = MonthYear, y = Value, group = Metric, color = Metric)) +
+  geom_line(alpha = 0.7) + 
+  geom_point(aes(shape = Event), fill = "black") + 
+  scale_color_manual(values = c("#E69F00", "#009E73")) +
+  scale_shape_manual(values = c(23, 24, 21), name = "Event") +
+  labs(x = "Time", y = "Value", title = "Offensive NFL Points Scored and Total Yards in the Past Decade", shape = "Event") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.75), legend.position = "top") + 
+  facet_wrap(~Metric, scales = "free_y", ncol = 1) 
+```
+
+First of all, we can see that defenses have the advantage at the beginning of the season. Due to the lack of chemistry with new teammates and familiarity with timing and schemes, offenses tend to be at a slight disadvantage. However, in the nest two months, offenses usually find their stride: their timing becomes more seamless and the defense does not have film on their new plays, audibles, etc. Therefore shifting the advantage to the offense. This is a consistent trend for each year in the NFL.
+
+Next, the extreme drop off of production in January due to one simple fact - there are less games being played. The number of games in this month is cut to about 40% of the total number of games that are typically played in a normal month due to the number of teams that make the NFL Playoffs.
+
+We can ultimately see that a lot of the national media has been incorrect. The addition of new rules that "heavily favor" the offense are a myth so far. Teams are not scoring demonstrably more than previous years. In fact, in the most recent years, one can argue that the rules have had the reverse effect. Even though the national media insists that we are going to see more offense, why is scoring down/plateauing? Let us assess different play types with this Shiny App.
+
+## Assessing Progression of Play Types in the NFL
+
+**Shiny App**: <https://a-chow3.shinyapps.io/Shiny1/>
+
+![Evolution of Play Type Efficiency in the NFL over the past Decade](/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/shiny1.jpeg) 
+
+In this Shiny app of rushing and passing plays, we can see that over the course of the decade, rushing efficiency based on rush direction has more or less stayed exactly the same over the years: Rushes to the left and right ends tend to have the most fluctuation in increased efficiency and production. Both of these rush directions also have the largest box area relative to the other directions, indicating that these plays are the most large yardage plays.
+
+Now in the passing plays, we do see that very little changes over the course of the years in shallow passes, left, middle and right. However, between the years 2017-2021, we do notice that the lower tail of the deep passes were much shorter than the tails of the boxes from the early 2010's seasons. However, these lower tails do resurface in the 2022 and 2023, but a little less prominently.
+
+I do think that this lack of a lower tail is noteworthy. This nonexistent tail signifies the lack of interceptions that are being returned for negative yardage. It is interesting that there seems to be a consistent amount of these rare plays in previous years but specifically in 2017, this play is essentially vanquished. 
+
+As we can remember from the list of NFL rules, this 2017-2019 time is really where the NFL continuously started to emphasize the enforcement of defenseless receiver safety. This especially effects the deep passes because of the increase time of ball flight. In previous years from 2000-2010, these zones were a cardinal sin for quarterback to throw to consistently due to the edge that defensive players had. Without going for the ball, defensive players could directly hit the intended receiver to dislodge the ball instead of jumping to attempt to catch the ball, hence the creation of the "defenseless player" term. Many of these plays resulted in popped up footballs for another defender to scoop up and return for an interception since no other offensive player is in the general vicinity of the play due to the deep pass.
+
+Now instead of being returned for negative yardage, many of these deep plays are being resulted in an incomplete pass (batted down usually) or caught by the intended offensive player. A much more binary outcome than before these instated rules. Now, do these more passive deep defenders allow more touchdowns?
+
+## Touchdown Scoring Trends by Play Type
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+tds <- nfl_pbp %>% 
+  group_by(YardLine, SeasonYear) %>%
+  summarize(total_plays = n(),
+            td_plays = sum(IsTouchdown),
+            td_pct = round(td_plays / total_plays, 4)) %>%
+  drop_na()
+
+fig3 <- plot_ly(tds, x = ~YardLine, y = ~td_pct, color = ~as.factor(SeasonYear), 
+               type = 'scatter', mode = 'markers', 
+               text = ~paste("YardLine:", YardLine, "<br>",
+                             "TD%:", td_pct, "<br>",
+                             "# of Touchdowns:", td_plays, "<br>",
+                             "Season Year:", SeasonYear),
+               marker = list(colorscale = list(list(0, okabe_ito_colors[1]), 
+                                                 list(1, okabe_ito_colors[7])))
+               )
+
+# Customize layout
+fig3 <- fig3 %>% layout(
+  xaxis = list(title = "YardLine"),
+  yaxis = list(title = "TD%"),
+  title = "TD% by YardLine Over the Years",
+  hovermode = "closest"
+)
+
+fig3
+```
+
+In the NFL, a "deep" pass/touchdown is classified as a 20 yard pass. Therefore, we will focus on the largely linear path from the 1 yard line to the 80 yard line. 
+
+When using the plotly, hover feature, we can see that the the number of touchdowns for each yard line for each season stays relatively the same throughout the decade. After our analysis from the previous Shiny app, we can conclude that the lack of negative plays on deep passes are largely resulting in incomplete passes rather than spiking the number of touchdowns on these types of passes. Instead of being returned for negative yardage or touchdowns, could these plays be increasing the number of penalties called on these plays to protect these defenseless receivers?
+
+## Analysis on the Trend of Penalties
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+penalty <- nfl_pbp[nfl_pbp$IsPenalty == 1,]
+
+nfl_pbp_pt <- penalty %>%
+  group_by(SeasonYear, PenaltyType) %>%
+  summarise(TotalPenalties = sum(IsPenalty),
+            TotalPenaltyYards = sum(Yards),
+            PenaltyCount = n(), .groups = "drop") %>%
+  pivot_wider(names_from = PenaltyType, values_from = PenaltyCount, values_fill = 0) %>%
+  drop_na() %>%
+  group_by(SeasonYear) %>%
+  summarise(across(everything(), sum, na.rm = TRUE))
+
+penalty_long <- tidyr::pivot_longer(nfl_pbp_pt, c(TotalPenalties, TotalPenaltyYards), names_to = "Metric", values_to = "Value")
+
+ggplot(penalty_long, aes(x = as.factor(SeasonYear), y = Value, group = Metric, color = Metric)) +
+  geom_point(show.legend = FALSE) +
+  geom_line(show.legend = FALSE) +
+  scale_color_manual(values = c("#E69F00", "#009E73")) +
+  labs(x = "Season", y= "Count") +
+  ggtitle("Total Number of Penalties in the NFL over the Past Decade") +
+  theme_minimal() + 
+  facet_wrap(~Metric, scales = "free_y", ncol = 1)
+```
+
+From these initial line graphs, we can see that there was an initial drop off in penalties from the 2015 to the 2016 season. From the 2017 to the 2019 seasons, we do see decrease in the total number of penalties called, but there is an *increase* in the number of yards associated with these penalties in both the 2019 and 2021 season in particular. This is specifically unusual since the number of yards gained is directly correlated with the number of penalties called. This indicates that a larger portion of the penalties that were called specifically in the 2019 and 2021 had a larger penalty than previous years. 
+
+Defensive Pass Interference is the only penalty in the NFL rule book that is a spot foul. This means that if the interference occurs further down the field than the spot of the original line of scrimmage, the penalty yardage is marked from the spot of the foul rather than from the line of scrimmage. The offense gains the yardage necessary for a first down or is placed at the spot of the foul, whichever is greater. We will check to see if this is truly the case in these years.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+penalty_data <- nfl_pbp_pt %>%
+  select(-TotalPenalties, -TotalPenaltyYards) %>%
+  pivot_longer(cols = -SeasonYear, names_to = "PenaltyType", values_to = "Count") %>%
+  group_by(SeasonYear, PenaltyType) %>%
+  summarise(Count = sum(Count, na.rm = TRUE)) %>%
+  ungroup()
+
+# Create the stacked bar chart
+fig8 <- penalty_data %>%
+  group_by(SeasonYear) %>%
+  mutate(rank = dense_rank(desc(Count))) %>%
+  filter(rank <= 6) %>%
+  mutate(PenaltyType = ifelse(rank == 6, "Other", PenaltyType)) %>%
+  ggplot(aes(x = SeasonYear, y = Count, fill = PenaltyType)) +
+  geom_col(position = "stack") +
+  labs(x = "Season", 
+       y = "Count of Penalties", 
+       title = "Penalty Type Breakdown across the NFL in the Past Decade") +
+  scale_fill_manual(values = okabe_ito_colors) +
+  theme_minimal()
+
+# Convert to plotly for Hover
+fig8_plotly <- ggplotly(fig8, tooltip = c("y", "fill")) 
+fig8_plotly
+```
+
+From the type breakdown graph, we can see that the number of "Defensive Pass Interference" (278,291) and "Defensive Holding" (301, 184) penalties did increase, but not as much as I had anticipated. The biggest outlier in this category was actually in 2020, with 335 DPI calls. A possible answer for this discrepancy in the number of penalties to the number of penalty yards could be the sheer magnitude of these penalties: more of these DPI calls have resulted in more yardage on average than previous years. 
+
+Overall, penalties have not been a significant factor in adding to the "increased offense" media narrative surrounding the modern NFL. From these graphs, the opposite conclusion could be in play due to the staggering decrease in total number of penalties called starting in 2020, which has since plateaued. Since then, it can be argued that the referees are letting the players play more and increasing the pace of play, limiting the stoppages in the games. If touchdowns, offensive plays, and penalties haven't changed with these new rules, did they have any affect on defense or special teams?
+
+## Examining the Types of Defensive plays in Relation to the Total Number of Plays
+
+**Shiny App**: <https://a-chow3.shinyapps.io/Shiny2/>
+
+![Relationship between Offensive and Defensive NFL Plays by Team](/Users/adamchow/Library/CloudStorage/Box-Box/UVA/Spring 2024 Classes/STAT 3280/shiny2.jpeg) 
+
+In this second Shiny app of total play breakdowns per team, we can see that overall, the proportion of defensive playmaking plays to offensive plays by a team has relatively stayed the same over the past decade. If anything, the percentage of fumbles/interceptions/sacks has decreased ever so slightly. 
+
+Collectively, the biggest takeaway from these graphs is that the trend of the decreasing total number of total plays ran by each team. Across the NFL, about half of the teams followed this specific trend: team hits their peak number of total plays ran somewhere from 2013-2017, followed by a noticeable dropoff in plays ran in specifically 2019. This decline is usually followed by an immediate jump back towards the peak in 2020, then concluding with another decline from 2021-2023 that remains lowered. While this trend does not apply to every team, it does surface in a significant number of teams. However, trend that does occur in every team is that the total number of plays from 2022-2023 is considerably lower than at the start of the decade from 2013-2014. 
+
+Why are the total number of plays dropping across the league in recent years? One answer to this question could be the number of penalties called in this time period, as we saw earlier. More penalties equals more times for the clock to stop, allowing teams to not have as many opportunities to bleed the clock. Another possible answer for this phenomenon could be a change in offensive philosophy. Across the NFL, teams want to be more cautious with the all to be more methodical in their offensive game plans: less explosive/high variance plays in exchange for more sure-fire short passes/runs. In turn, this style has had a trickling effect because other teams realize that they are not getting as many total possessions as they used to. Each team now needs to now need to value each possession more and limit turnovers because they are receiving less possessions over the course of a game. This second answer could explain some of the deep passing trends we found earlier. Let's see if these limited turnovers lead to more or less scoring?
+    
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# 2023 Defense ----
+d_2023_web <- read_html("https://www.pro-football-reference.com/years/2023/opp.htm")
+
+Team<-d_2023_web%>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2023_web%>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2023_web%>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2023_web%>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2023 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2023 <- d_2023 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2023_web%>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2023_web%>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2023 <- d_2023 %>%
+  mutate(QBPressPer = QBPressPer,
+         MissTkl = MissTkl, 
+         Year = 2023)
+
+# 2022 Defense ----
+d_2022_web <- read_html("https://www.pro-football-reference.com/years/2022/opp.htm")
+
+Team<-d_2022_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2022_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2022_web %>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2022_web %>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2022 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2022 <- d_2022 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2022_web %>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2022_web %>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2022 <- d_2022 %>%
+  mutate(QBPressPer = QBPressPer,
+         MissTkl = MissTkl, 
+         Year = 2022)
+# 2021 Defense ----
+d_2021_web <- read_html("https://www.pro-football-reference.com/years/2021/opp.htm")
+
+Team<-d_2021_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2021_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2021_web %>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2021_web %>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2021 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2021 <- d_2021 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2021_web %>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2021_web %>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2021 <- d_2021 %>%
+  mutate(QBPressPer = QBPressPer,
+         MissTkl = MissTkl, 
+         Year = 2021)
+
+# 2020 Defense ----
+d_2020_web <- read_html("https://www.pro-football-reference.com/years/2020/opp.htm")
+
+Team<-d_2020_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2020_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2020_web%>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2020_web%>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2020 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2020 <- d_2020 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2020_web%>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2020_web%>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2020 <- d_2020 %>%
+  mutate(QBPressPer = QBPressPer,
+         MissTkl = MissTkl, 
+         Year = 2020)
+
+# 2019 Defense ----
+d_2019_web <- read_html("https://www.pro-football-reference.com/years/2019/opp.htm")
+
+Team<-d_2019_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2019_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2019_web %>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2019_web %>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2019 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2019 <- d_2019 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2019_web %>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2019_web %>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2019 <- d_2019 %>%
+  mutate(QBPressPer = QBPressPer,
+         MissTkl = MissTkl, 
+         Year = 2019)
+# 2018 Defense ----
+d_2018_web <- read_html("https://www.pro-football-reference.com/years/2018/opp.htm")
+
+Team<-d_2018_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2018_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2018_web %>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2018_web %>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2018 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2018 <- d_2018 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2018_web %>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2018_web %>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2018 <- d_2018 %>%
+  mutate(QBPressPer = QBPressPer,
+         MissTkl = MissTkl, 
+         Year = 2018)
+# 2017 Defense ----
+d_2017_web <- read_html("https://www.pro-football-reference.com/years/2017/opp.htm")
+
+Team<-d_2017_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2017_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2017_web %>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2017_web %>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2017 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2017 <- d_2017 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2017_web %>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2017_web %>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2017 <- d_2017 %>%
+  mutate(QBPressPer = NA,
+         MissTkl = NA, 
+         Year = 2017)
+# 2016 Defense ----
+d_2016_web <- read_html("https://www.pro-football-reference.com/years/2016/opp.htm")
+
+Team<-d_2016_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2016_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2016_web %>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2016_web %>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2016 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2016 <- d_2016 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2016_web %>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2016_web %>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2016 <- d_2016 %>%
+  mutate(QBPressPer = NA,
+         MissTkl = NA, 
+         Year = 2016)
+# 2015 Defense ----
+d_2015_web <- read_html("https://www.pro-football-reference.com/years/2015/opp.htm")
+
+Team<-d_2015_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2015_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2015_web %>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2015_web %>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2015 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2015 <- d_2015 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2015_web %>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2015_web %>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2015 <- d_2015 %>%
+  mutate(QBPressPer = NA,
+         MissTkl = NA, 
+         Year = 2015)
+# 2014 Defense ----
+d_2014_web <- read_html("https://www.pro-football-reference.com/years/2014/opp.htm")
+
+Team<-d_2014_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2014_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2014_web %>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2014_web %>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2014 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2014 <- d_2014 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2014_web %>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2014_web %>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2014 <- d_2014 %>%
+  mutate(QBPressPer = NA,
+         MissTkl = NA, 
+         Year = 2014)
+# 2013 Defense ----
+d_2013_web <- read_html("https://www.pro-football-reference.com/years/2013/opp.htm")
+
+Team<-d_2013_web %>%
+  html_nodes('#team_stats tbody .left')%>%
+  html_text()
+
+YardsPerPlay<-d_2013_web %>%
+  html_nodes('#team_stats tbody .right:nth-child(7)')%>%
+  html_text()
+
+ScorePer<-d_2013_web %>%
+  html_nodes('tbody .right:nth-child(26)')%>%
+  html_text() %>%
+  str_sub() 
+
+TOPer<-d_2013_web %>%
+  html_nodes('tbody .right:nth-child(27)')%>%
+  html_text() %>%
+  str_sub() 
+
+d_2013 <-data.frame(Team, YardsPerPlay, ScorePer, TOPer) # First Iteration
+
+# Add Rank
+d_2013 <- d_2013 %>%
+  mutate(Rank = row_number()) %>%
+  select(Team, Rank, everything()) %>%
+  arrange(Team)
+
+QBPressPer<-d_2013_web %>%
+  html_nodes('#advanced_defense .right:nth-child(18)')%>%
+  html_text() %>%
+  str_sub() 
+
+MissTkl<-d_2013_web %>%
+  html_nodes('#advanced_defense .right:nth-child(19)')%>%
+  html_text() %>%
+  str_sub() 
+
+# Add back to Dataframe
+d_2013 <- d_2013 %>%
+  mutate(QBPressPer = NA,
+         MissTkl = NA, 
+         Year = 2013)
+
+
+
+## Combine Data frames ----
+defense <- do.call("rbind", list(d_2013, d_2014, d_2015, d_2016, d_2017, d_2018, d_2019, d_2020, d_2021, d_2022, d_2023))
+
+defense$YardsPerPlay <- as.numeric(defense$YardsPerPlay)
+defense$ScorePer <- as.numeric(defense$ScorePer)
+defense$TOPer <- as.numeric(defense$TOPer)
+defense$QBPressPer <- as.numeric(defense$QBPressPer)
+defense$MissTkl <- as.numeric(defense$MissTkl)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+defense$Year <- as.factor(defense$Year)
+
+# Create the Plotly scatterplot with animation
+fig <- plot_ly(defense, 
+               x = ~TOPer, 
+               y = ~ScorePer,
+               size = ~YardsPerPlay, 
+               type = 'scatter',
+               mode = 'markers',
+               text = ~paste("Team:", Team, "<br>",
+                            "Year:", Year, "<br>",
+                            "Turnover %:", TOPer, "<br>",
+                            "Scoring %:", ScorePer, "<br>",
+                            "Yards Per Play:", YardsPerPlay), 
+               frame = ~Year)
+
+fig <- fig %>% 
+  add_trace(y = ~median(ScorePer), 
+            type = "scatter", 
+            mode = "lines", 
+            line = list(color = "#0072B2"), # Add Median
+            showlegend = FALSE) %>% 
+  add_trace(x = ~median(TOPer), 
+            type = "scatter", 
+            mode = "lines", 
+            line = list(color = "#F0E442"), # Add Median
+            showlegend = FALSE) %>% 
+  animation_opts(frame = 1000, redraw = FALSE,
+                 transition = list(duration = 1),
+                 mode = "next") %>% 
+  add_trace(color = I("#DC3220")) 
+
+fig <- fig %>% 
+  layout(xaxis = list(
+    range = c(3, 20),
+    tickmode = "linear",
+    tick0 = 0,
+    dtick = 2,
+    title = "Defensive Turnover %"
+  ),
+  yaxis = list(title = "Allow Offensive Score %"),
+  title = "Evolution of Advanced Defensive Metrics in the Modern NFL",
+  annotations = list(
+    list(
+      x = 5,
+      y = 50,
+      text = "Bad defenses",
+      showarrow = FALSE,
+      opacity = 0.7,
+      font = list(color = "black")
+    ),
+    list(
+      x = 19,
+      y = 20,
+      text = "Elite defenses",
+      showarrow = FALSE,
+      opacity = 0.7,
+      font = list(color = "black")
+    )
+  )
+)
+
+fig
+## how to get rid of "trace 0" in place of legend?
+```  
+
+As we can see from this animation graphic, teams in the bottom right quadrant with smaller points indicate a stronger defense, because that team is allowing fewer yards per play, with a higher turnover percentage, and a lower percentage of drives that end in the offense scoring. Conversely, this means that team located in the upper left quadrant with larger points indicate a worse defense fo that particular season.
+
+Over the course of the decade, it is fairly obvious that turnovers in the NFL are largely luck based. The teams that have high turnover rates in a given year tend to fluctuate back and forth with no real consistency. However, when assessing the spread of Score Percentage across the NFL in comparison to the league median (blue horizontal line), we see that between the years 2018-2021, the number of teams that have a Score Percentage above the median increases significantly. In the years outside of this threshold, teams are either evenly spread above and below this line (2022, 2023) or teams are mainly clustered below this line (2015, 2017).
+
+During this time period where these "defenseless player" rules were constantly being instated, it is clear that defenses did have a hard time adjusting at first. Teams in this stretch allowed more touchdowns and field goals in respect to the number of drives they played on defense. This increases Scoring percentage can also potentially back up my hypothesis that offensive teams started to take more time off of the clock per drive and value individual possession more than before. Lastly, I want to see if do these new rules have had a significant trickle down effect to special teams?
+
+## Special Team Play Type Breakdown
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+special_teams_counts <- nfl_pbp %>%
+  filter(PlayType %in% c("KICK OFF", "FIELD GOAL", "EXTRA POINT", "PUNT")) %>%
+  mutate(PlayType = factor(PlayType, levels = c("KICK OFF", "FIELD GOAL", "EXTRA POINT", "PUNT"))) %>%
+  group_by(SeasonYear, PlayType) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  drop_na()
+
+fig6 <- ggplot(special_teams_counts, aes(x = SeasonYear, y = count, fill = PlayType)) +
+  geom_col(position = "stack") +
+  labs(title = "Special Teams Plays in the NFL over the past Decade",
+       x = "Year",
+       y = "Number of Plays",
+       fill = "Play Type") +
+  scale_x_continuous(breaks = unique(special_teams_counts$SeasonYear)) +
+  scale_fill_manual(values = c( "#009E73", "#F0E442", "#0072B2", "#DC3220")) +
+  theme_minimal()
+
+# Convert to plotly for Hover
+fig6_plotly <- ggplotly(fig6, tooltip = c("y", "fill")) 
+fig6_plotly
+```
+
+From this overall graphic, we can see that the decreased number of total plays trend continues to special teams as well. Fewer overall possessions (receiving a kick off is 1 possession) leads to a fewer aggregate amount of attempted field goals, extra points, and punts. We also observe a very similar trend to the number of total plays for each team graphic: After 2017, there is a steady slight decline of offense followed by a spike in these categories in 2020, then another fast decline after that one season.
+
+Generally, we see that over the entire decade, the number of Punts decreases by about 100 each year. This leads me to believe that my second possible answer for the number of overall plays dropping may be true. Teams are progressively valuing each possession more and more, and are unwilling to give up possession and control of the clock unless absolutely necessary. In 2022 and 2023, the number of field goals attempted (854, 824) and extra points attempted (968, 885), both went under their thresholds of 900 and 1000 respectively for the first time in the last decade. This is significant because NFL teams are clearly trending towards a more analytical route of going for fourth downs instead of punting or settling for field goals and going for a two-point conversion instead of taking an extra point attempt every time.
+
+# Conclusion
+## From these visualizations, can we visibly notice big spikes/declines after specific rule changes? 
+The NFL has been evolving rapidly over the past decade, with new rules aimed at increasing player safety and offensive excitement. However, as the game changes, concerns arise about whether these modifications are inadvertently altering the essence of America's Game.
+
+Through this comprehensive analysis of play-by-play data from NFL Savant, a nuanced picture emerges to our attention. While rushing efficiency has remained relatively consistent, the dynamics of passing plays have undergone a subtle shift. The absence of deep pass interceptions returned for negative yardage during the 2017-2021 period suggests that the rules protecting defenseless receivers have had an impact on defensive playmaking.
+
+Interestingly, this reduction in negative plays did not lead to a spike in touchdowns on deep passes. Instead, it resulted in more incomplete passes, suggesting a more binary outcome. Additionally, while defensive penalties like pass interference increased during this period, their overall impact on the game was not as significant as anticipated.
+
+As the NFL heavily sought to enhance player safety around 2017, NFL teams adapted their offensive philosophies. A growing trend emerged: teams started to value each possession more, opting for a more methodical approach over high-variance, explosive plays. This shift in strategy, combined with fewer penalties, contributed to a noticeable decline in the total number of plays run by teams across the league, particularly in recent years. 
+
+Surprisingly, this offensive shift did not directly translate into a scoring frenzy. While defenses initially struggled to adjust during the 2018-2021 period, with more teams allowing a higher percentage of drives to result in scores, the league eventually found a new equilibrium.
+
+The impact of these rule changes trickled down to special teams as well. With fewer overall possessions, the number of attempted field goals, extra points, and punts decreased. Teams embraced a more analytical approach, opting to go for it on fourth downs or attempt two-point conversions instead of settling for traditional kicking plays.
+
+In the end, I believe that the national media is severely overreacting to the elimination of the hip-drop tackle, and it will not have as adverse an effect on defensive playmaking as initially feared. The game and the players have always adapted. NFL teams will eventually adjust their strategies to navigate the ever-evolving landscape.
