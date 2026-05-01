@@ -2,8 +2,6 @@
 
 **Author:** Adam Chow  
 **Course:** STAT 3280 – Data Visualization  
-**Date:** April 22, 2024  
-**Institution:** University of Virginia
 
 ---
 
